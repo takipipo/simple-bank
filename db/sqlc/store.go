@@ -20,6 +20,8 @@ func NewStore(db *sql.DB) *Store {
 	}
 }
 
+var txKey = struct{}{}
+
 // execTx executes a function within a database transaction
 func (store *Store) execTx(ctx context.Context, fn func(*Queries) error) error {
 	tx, err := store.db.BeginTx(ctx, nil)
@@ -83,7 +85,23 @@ func (store *Store) TransferTx(
 			ctx,
 			CreateEntryParams{AccountID: arg.ToAccountID, Amount: arg.Amount},
 		)
-		// TODO: update accounts' balance
+		// get account and update the balance
+		result.FromAccount, err = q.AddAccountBalance(
+			ctx,
+			AddAccountBalanceParams{Amount: -arg.Amount, ID: arg.FromAccountID},
+		)
+		if err != nil {
+			return err
+		}
+
+		result.ToAccount, err = q.AddAccountBalance(
+			ctx,
+			AddAccountBalanceParams{Amount: arg.Amount, ID: arg.ToAccountID},
+		)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	})
 	return result, err
